@@ -6,13 +6,25 @@ import winsound
 from tkinter.font import Font
 from datetime import datetime, time
 from time import sleep
+from num2word import word as n2w
+from word2number import w2n
 
 #TODO: winning logic, new game stuff
 
 global turn
 turn = 'black'
 
+def number(word): return w2n.word_to_num(word)
+
+def word(number):
+    if number!=0: return n2w(number)
+    else: return 'Zero'
+
 def squareToPiece(x1,y1): return [x1-(pieceSide/2),y1-(pieceSide/2),x1+(pieceSide/2),y1+(pieceSide/2)]
+
+def other(turn):
+    if turn == 'white': return 'black'
+    elif turn == 'black': return 'white'
 
 def originalCoords(widget, thing):
     for tag in widget.gettags(thing):
@@ -33,10 +45,13 @@ def addTag(widget, thing, tag):
     newtags = widget.gettags(thing) + (tag,)
     widget.itemconfig(thing, tags=newtags)
 
-def numberOf(widget, space):
-    for tag in widget.gettags(space):
+def numberOf(widget, thing):
+    for tag in widget.gettags(thing):
         try:
-            return int(tag)
+            if number(tag)!=None:
+                return number(tag)
+            elif number(tag)=='':
+                return 0
         except:
             pass
 
@@ -52,6 +67,17 @@ def accessTo(widget, space):
 def valid(widget, space):
     return (numberOf(widget, space) - numberOf(widget, widget.find_withtag('dragged')[0]) == outcome) and accessTo(widget, space)
 
+def checkForWinner(widget):
+    if len(set(widget.find_withtag('Fifteen')) & set(widget.find_withtag('white')))==8:
+        rollButton.config(state=DISABLED)
+        board.create_text(windowWidth*0.4, windowHeight/2, text='White wins', fill='red', font=Font(family='Times New Roman', size=50), tags=('temp'))
+        board.update_idletasks()
+    if len(set(widget.find_withtag('Fifteen')) & set(widget.find_withtag('black')))==8:
+        rollButton.config(state=DISABLED)
+        board.create_text(windowWidth*0.4, windowHeight/2, text='Black wins', fill='red', font=Font(family='Times New Roman', size=50), tags=('temp'))
+        board.update_idletasks()
+        
+        
 def onDragStart(event):
     global turn
     if rollButton['state']=='disabled':
@@ -69,7 +95,7 @@ def onDragStart(event):
                     r=numberOf(widget,thing)
                 except:
                     try:
-                        addTag(widget, thing, numberOf(widget, space))
+                        addTag(widget, thing, word(numberOf(widget, space)))
                     except:
                         pass
                 try:
@@ -96,7 +122,7 @@ def onDragEnd(event):
     relevantThings = widget.find_overlapping(event.x-(pieceSide/8), event.y-(pieceSide/8), event.x+(pieceSide/8), event.y+(pieceSide/8))
     for thing in relevantThings:
         tags = widget.gettags(thing)
-        if 'space' in tags and turn not in tags and ('rosette' not in tags or 'black' not in tags) and ('rosette' not in tags or 'white' not in tags) and valid(widget, thing) and '15' not in tags:
+        if 'space' in tags and turn not in tags and ('rosette' not in tags or 'black' not in tags) and ('rosette' not in tags or 'white' not in tags) and valid(widget, thing) and 'Fifteen' not in tags:
             spaceCoords = widget.coords(thing)
             widget.coords(draggedThing, *squareToPiece(*spaceCoords))
             addTag(widget, thing, turn)
@@ -109,34 +135,32 @@ def onDragEnd(event):
                     else:
                         widget.coords(thing2, *blackStart)
                         removeTag(widget, thing, 'black')
-                    removeTag(widget, thing2, str(numberOf(widget, thing2)))
-                    addTag(widget, thing2, '0')
-            if turn=='white' and widget.coords(draggedThing)!=originalCoords(widget, draggedThing):
-                turn='black'
-            elif widget.coords(draggedThing)!=originalCoords(widget, draggedThing):
-                turn='white'
+                    removeTag(widget, thing2, word(numberOf(widget, thing2)))
+                    addTag(widget, thing2, 'Zero')
+            if widget.coords(draggedThing)!=originalCoords(widget, draggedThing):
+                turn=other(turn)
             removeTag(widget, draggedThing, 'dragged')
             removeTag(widget, draggedThing, str(originalCoords(widget, draggedThing)))
-            removeTag(widget, draggedThing, str(numberOf(widget, draggedThing)))
-            addTag(widget, draggedThing, str(numberOf(widget, thing)))
+            try:
+                removeTag(widget, draggedThing, word(numberOf(widget, draggedThing)))
+            except:
+                removeTag(widget, draggedThing, 'Zero')
+            addTag(widget, draggedThing, word(numberOf(widget, thing)))
             rollButton.config(state='normal')
             return
-        elif 'space' in tags and '15' in tags and valid(widget, thing):
+        elif 'space' in tags and 'Fifteen' in tags and valid(widget, thing):
             addTag(widget, thing, turn)
             spaceCoords = widget.coords(thing)
-            if turn=='white' and widget.coords(draggedThing)!=originalCoords(widget, draggedThing):
-                turn='black'
-            elif widget.coords(draggedThing)!=originalCoords(widget, draggedThing):
-                turn='white'
+            if widget.coords(draggedThing)!=originalCoords(widget, draggedThing):
+                turn=other(turn)
             widget.coords(draggedThing, *squareToPiece((spaceCoords[0]+spaceCoords[2])/2, (spaceCoords[1]+spaceCoords[3])/2))
             removeTag(widget, draggedThing, 'dragged')
             removeTag(widget, draggedThing, str(originalCoords(widget, draggedThing)))
-            removeTag(widget, draggedThing, str(numberOf(widget, draggedThing)))
+            removeTag(widget, draggedThing, word(numberOf(widget, draggedThing)))
             removeTag(widget, draggedThing, 'piece')
-            addTag(widget, draggedThing, str(numberOf(widget, thing)))
+            addTag(widget, draggedThing, 'Fifteen')
             rollButton.config(state='normal')
-            if len([i for i in list(tags) if i=='15'])==7:
-                winner=turn
+            checkForWinner(widget)
             return
     widget.coords(draggedThing, *originalCoords(widget, draggedThing))
     onSpace = widget.find_overlapping(*originalCoords(widget, draggedThing))
@@ -145,6 +169,7 @@ def onDragEnd(event):
     removeTag(widget, draggedThing, str(originalCoords(widget, draggedThing)))
     for space in onSpace:
         addTag(widget, space, turn)
+        
 
 def makeDraggable(widget):
     widget.bind("<Button-1>", onDragStart)
@@ -160,23 +185,22 @@ def diceRoll(label):
     winsound.PlaySound('Dice Sound.wav', winsound.SND_FILENAME)
     label.config(text=str(outcome))
     if outcome == 0:
-        if turn == 'black': turn='white'
-        else: turn = 'black'
+        turn = other(turn)
         return False
-    for i in range(5,19):
-        tags = board.gettags(i)
-        if turn in tags and len([j for j in range(0,37) if (turn not in board.gettags(j) or numberOf(board, j)==15) and 'space' in board.gettags(j) and
-                                 ('("'+turn+'",)' in board.gettags(j) or ('("white",)' not in board.gettags(j) and '("black",)' not in board.gettags(j)))
-                                 and numberOf(board, j)-numberOf(board, i)==outcome and
-                                 ('rosette' not in board.gettags(j) or ('black' not in board.gettags(j) and 'white' not in board.gettags(j)))])>0:
-            return None
+    for i in board.find_withtag('piece'):
+        tags=board.gettags(i)
+        if turn in tags:
+            prospects = numberOf(board, i)+outcome
+            if prospects<16 and len(((set(board.find_withtag(word(prospects))) & set(board.find_withtag('space'))) - ((set(board.find_withtag(turn)) - set(board.find_withtag('Fifteen'))) | set(board.find_withtag('("'+other(turn)+'",)')) | (set(board.find_withtag('rosette')) & set(board.find_withtag(other(turn)))))))>0:
+                return None
     board.create_text(windowWidth*0.4, windowHeight/2, text='No legal move', fill='red', font=Font(family='Times New Roman', size=50), tags=('temp'))
     board.update_idletasks()
     sleep(1.5)
-    for i in board.find_withtag('temp'): board.delete(i)
+    board.delete('temp')
+    turn = other(turn)
     return False
 
-
+#sets up window
 root = Tk()
 
 myFont = Font(family="Times New Roman", size=20)
@@ -191,6 +215,7 @@ windowWidth = root.winfo_width()
 pieceSide = floor(windowHeight/10)
 squareSide = floor(pieceSide*1.5)
 
+#loads images
 brownSpace1 = Image.open('brown tile 1.jpg')
 brownSpace1 = brownSpace1.resize((squareSide, squareSide), Image.ANTIALIAS)
 brownSpace1 = ImageTk.PhotoImage(brownSpace1)
@@ -252,46 +277,50 @@ blueRosette4 = Image.open('rosette 5.jpg')
 blueRosette4 = blueRosette4.resize((squareSide, squareSide), Image.ANTIALIAS)
 blueRosette4 = ImageTk.PhotoImage(blueRosette4)
 
+
+#sets up board space
 board= Canvas(root, bg='chartreuse3', relief=SUNKEN, height=windowHeight, width=floor(0.8*windowWidth))
 sideGap=(0.8*windowWidth-(16/15)*windowHeight)/2
 topGap=0.35*windowHeight
 board.pack(side=LEFT)
 
+#create spaces
+board.create_image(sideGap, topGap, image=blueRosette1, tags=('space', 'rosette', 'Four', '("black",)'))
+board.create_image(sideGap+squareSide, topGap, image=brownSpace1, tags=('space', 'Three','("black",)' ))
+board.create_image(sideGap+2*squareSide, topGap, image=orangeSpace1, tags=('space', 'Two', '("black",)'))
+board.create_image(sideGap+3*squareSide, topGap, image=brownSpace2, tags=('space', 'One', '("black",)'))
+board.create_image(sideGap+6*squareSide, topGap, image=blueRosette2, tags=('space', 'rosette', 'Fourteen','("black",)' ))
+board.create_image(sideGap+7*squareSide, topGap, image=brownSpace3, tags=('space', 'Thirteen','("black",)' ))
+board.create_image(sideGap, topGap+squareSide, image=brownSpace4, tags=('space', 'Five'))
+board.create_image(sideGap+squareSide, topGap+squareSide, image=orangeSpace2, tags=('space', 'Six'))
+board.create_image(sideGap+2*squareSide, topGap+squareSide, image=brownSpace5, tags=('space', 'Seven'))
+board.create_image(sideGap+3*squareSide, topGap+squareSide, image=orangeRosette, tags=('space', 'rosette', 'Eight'))
+board.create_image(sideGap+4*squareSide, topGap+squareSide, image=brownSpace6, tags=('space', 'Nine'))
+board.create_image(sideGap+5*squareSide, topGap+squareSide, image=orangeSpace3, tags=('space', 'Ten'))
+board.create_image(sideGap+6*squareSide, topGap+squareSide, image=brownSpace7, tags=('space', 'Eleven'))
+board.create_image(sideGap+7*squareSide, topGap+squareSide, image=orangeSpace4, tags=('space', 'Twelve'))
+board.create_image(sideGap, topGap+2*squareSide, image=blueRosette3, tags=('space', 'rosette', 'Four', '("white",)'))
+board.create_image(sideGap+squareSide, topGap+2*squareSide, image=brownSpace8, tags=('space', 'Three', '("white",)'))
+board.create_image(sideGap+2*squareSide, topGap+2*squareSide, image=orangeSpace5, tags=('space', 'Two', '("white",)'))
+board.create_image(sideGap+3*squareSide, topGap+2*squareSide, image=brownSpace9, tags=('space', 'One', '("white",)'))
+board.create_image(sideGap+6*squareSide, topGap+2*squareSide, image=blueRosette4, tags=('space', 'rosette', 'Fourteen', '("white",)'))
+board.create_image(sideGap+7*squareSide, topGap+2*squareSide, image=brownSpace10, tags=('space', 'Thirteen', '("white",)'))
 
-board.create_image(sideGap, topGap, image=blueRosette1, tags=('space', 'rosette', '4', '("black",)'))
-board.create_image(sideGap+squareSide, topGap, image=brownSpace1, tags=('space', '3','("black",)' ))
-board.create_image(sideGap+2*squareSide, topGap, image=orangeSpace1, tags=('space', '2', '("black",)'))
-board.create_image(sideGap+3*squareSide, topGap, image=brownSpace2, tags=('space', '1', '("black",)'))
+board.create_rectangle(sideGap+4.5*squareSide, topGap-0.5*squareSide, sideGap+5.5*squareSide, topGap+0.5*squareSide, fill='chartreuse3', tags=('space', 'Fifteen', '("black",)'))
+board.create_rectangle(sideGap+4.5*squareSide, topGap+1.5*squareSide, sideGap+5.5*squareSide, topGap+2.5*squareSide, fill='chartreuse3', tags=('space', 'Fifteen', '("white",)'))
+
 blackStart=[sideGap+3.5*squareSide+(squareSide-pieceSide)/2,topGap-0.35*squareSide,sideGap+4.5*squareSide-(squareSide-pieceSide)/2, topGap+pieceSide-0.35*squareSide]
 whiteStart=[sideGap+3.5*squareSide+(squareSide-pieceSide)/2, windowHeight-topGap-0.35*squareSide, sideGap+4.5*squareSide-(squareSide-pieceSide)/2, windowHeight-topGap-0.35*squareSide+pieceSide]
+
 for i in range(0, 7):
-    board.create_oval(*blackStart, fill = 'black', tags = ('piece', 'black', '0'))
+    board.create_oval(*blackStart, fill = 'black', tags = ('piece', 'black', 'Zero'))
 for i in range(0, 7):
-    board.create_oval(*whiteStart, fill = 'white', tags = ('piece', 'white', '0'))
-
-board.create_image(sideGap+6*squareSide, topGap, image=blueRosette2, tags=('space', 'rosette', '14','("black",)' ))
-board.create_image(sideGap+7*squareSide, topGap, image=brownSpace3, tags=('space', '13','("black",)' ))
-board.create_image(sideGap, topGap+squareSide, image=brownSpace4, tags=('space', '5'))
-board.create_image(sideGap+squareSide, topGap+squareSide, image=orangeSpace2, tags=('space', '6'))
-board.create_image(sideGap+2*squareSide, topGap+squareSide, image=brownSpace5, tags=('space', '7'))
-board.create_image(sideGap+3*squareSide, topGap+squareSide, image=orangeRosette, tags=('space', 'rosette', '8'))
-board.create_image(sideGap+4*squareSide, topGap+squareSide, image=brownSpace6, tags=('space', '9'))
-board.create_image(sideGap+5*squareSide, topGap+squareSide, image=orangeSpace3, tags=('space', '10'))
-board.create_image(sideGap+6*squareSide, topGap+squareSide, image=brownSpace7, tags=('space', '11'))
-board.create_image(sideGap+7*squareSide, topGap+squareSide, image=orangeSpace4, tags=('space', '12'))
-board.create_image(sideGap, topGap+2*squareSide, image=blueRosette3, tags=('space', 'rosette', '4', '("white",)'))
-board.create_image(sideGap+squareSide, topGap+2*squareSide, image=brownSpace8, tags=('space', '3', '("white",)'))
-board.create_image(sideGap+2*squareSide, topGap+2*squareSide, image=orangeSpace5, tags=('space', '2', '("white",)'))
-board.create_image(sideGap+3*squareSide, topGap+2*squareSide, image=brownSpace9, tags=('space', '1', '("white",)'))
-board.create_image(sideGap+6*squareSide, topGap+2*squareSide, image=blueRosette4, tags=('space', 'rosette', '14', '("white",)'))
-board.create_image(sideGap+7*squareSide, topGap+2*squareSide, image=brownSpace10, tags=('space', '13', '("white",)'))
-
-board.create_rectangle(sideGap+4.5*squareSide, topGap-0.5*squareSide, sideGap+5.5*squareSide, topGap+0.5*squareSide, fill='chartreuse3', tags=('space', '15', '("black",)'))
-board.create_rectangle(sideGap+4.5*squareSide, topGap+1.5*squareSide, sideGap+5.5*squareSide, topGap+2.5*squareSide, fill='chartreuse3', tags=('space', '15', '("white",)'))
-
+    board.create_oval(*whiteStart, fill = 'white', tags = ('piece', 'white', 'Zero'))
 board.tag_raise('piece')
+
 makeDraggable(board)
 
+#adds dice roll stuff
 roll = Label(root, bg='white', relief=SUNKEN, font=myFont, height=floor(windowHeight/200), width=floor(0.15*0.05*windowWidth))
 roll.pack()
 
@@ -301,4 +330,28 @@ def rollDice():
 rollButton = Button(root, bg='white', relief=SUNKEN, font=myFont, height=floor(windowHeight/400), width=floor(0.15*0.05*windowWidth), command=rollDice, text='Roll the Dice')
 rollButton.pack()
 
-#root.mainloop()
+def setupNewGame():
+    global turn
+    board.delete('piece')
+    board.delete('temp')
+    board.delete('Fifteen')
+    board.create_rectangle(sideGap+4.5*squareSide, topGap-0.5*squareSide, sideGap+5.5*squareSide, topGap+0.5*squareSide, fill='chartreuse3', tags=('space', 'Fifteen', '("black",)'))
+    board.create_rectangle(sideGap+4.5*squareSide, topGap+1.5*squareSide, sideGap+5.5*squareSide, topGap+2.5*squareSide, fill='chartreuse3', tags=('space', 'Fifteen', '("white",)'))
+    for i in range(0, 7):
+        board.create_oval(*blackStart, fill = 'black', tags = ('piece', 'black', 'Zero'))
+    for i in range(0, 7):
+        board.create_oval(*whiteStart, fill = 'white', tags = ('piece', 'white', 'Zero'))
+    board.tag_raise('piece')
+    rollButton.config(state=NORMAL)
+    roll.config(text='')
+    turn='black'
+    for i in set(board.find_withtag('space')) & set(board.find_withtag('white')):
+        removeTag(board, i, 'white')
+    for i in set(board.find_withtag('space')) & set(board.find_withtag('black')):
+        removeTag(board, i, 'black')
+
+#adds new game button
+newGameButton = Button(root, bg='white', relief=SUNKEN, font=myFont, height=floor(windowHeight/400), width=floor(0.15*0.05*windowWidth), command=setupNewGame, text='New Game')
+newGameButton.pack()
+
+root.mainloop()
